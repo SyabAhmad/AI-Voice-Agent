@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from app.core.logger import logger
 from app.services import booking_service
+from app.services import email_service
 
 router = APIRouter()
 
@@ -184,6 +185,18 @@ async def book_appointment(request: Request):
         logger.info(
             f"✅ Booked: {data['name']} on {data['requested_date']} at {data['requested_time']}"
         )
+
+        if data.get("email"):
+            email_sent = await email_service.send_appointment_email(
+                to_email=data["email"],
+                contact_name=data["name"],
+                date=data["requested_date"],
+                time=data["requested_time"],
+            )
+            if email_sent:
+                logger.info(f"📧 Confirmation email sent to {data['email']}")
+            else:
+                logger.warning(f"📧 Failed to send email to {data['email']}")
 
         return {
             "success": True,

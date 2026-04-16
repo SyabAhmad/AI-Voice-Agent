@@ -1,5 +1,6 @@
+import smtplib
+from email.mime.text import MIMEText
 from typing import Optional
-import httpx
 from app.core.config import settings
 from app.core.logger import logger
 
@@ -11,20 +12,16 @@ async def send_appointment_email(
     time: str,
     service_name: str = "Appointment",
 ) -> bool:
-    if (
-        not settings.brevo_api_key
-        or settings.brevo_api_key == "xsh-xxxxxxxxxxxxxxxxxxxxxxxx"
-    ):
-        logger.warning("Brevo API key not configured. Skipping email.")
+    if not to_email:
+        logger.warning("No email address provided. Skipping email.")
         return False
 
-    url = "https://api.brevo.com/v3/smtp/email"
+    if not settings.smtp_email or not settings.smtp_password:
+        logger.warning("SMTP credentials not configured. Skipping email.")
+        return False
 
-    payload = {
-        "sender": {"name": "Appointment Booking", "email": "noreply@yourdomain.com"},
-        "to": [{"email": to_email, "name": contact_name}],
-        "subject": f"Appointment Confirmation - {date} at {time}",
-        "htmlContent": f"""
+    try:
+        html_content = f"""
         <html>
         <body>
             <h2>Appointment Confirmed!</h2>
@@ -37,29 +34,20 @@ async def send_appointment_email(
             <p>Best regards,<br>Appointment Booking Team</p>
         </body>
         </html>
-        """,
-    }
+        """
 
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                json=payload,
-                headers={
-                    "api-key": settings.brevo_api_key,
-                    "Content-Type": "application/json",
-                },
-                timeout=30.0,
-            )
+        msg = MIMEText(html_content, "html")
+        msg["Subject"] = f"Appointment Confirmation - {date} at {time}"
+        msg["From"] = settings.smtp_email
+        msg["To"] = to_email
 
-            if response.status_code in [200, 201]:
-                logger.info(f"Email sent successfully to {to_email}")
-                return True
-            else:
-                logger.error(
-                    f"Brevo API error: {response.status_code} - {response.text}"
-                )
-                return False
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(settings.smtp_email, settings.smtp_password)
+        server.send_message(msg)
+        server.quit()
+
+        logger.info(f"📧 Email sent successfully to {to_email}")
+        return True
     except Exception as e:
         logger.error(f"Email sending failed: {e}")
         return False

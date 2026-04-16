@@ -9,8 +9,10 @@ class Settings(BaseSettings):
     groq_api_key: str
 
     brevo_api_key: str = "xsh-xxxxxxxxxxxxxxxxxxxxxxxx"
-
     resend_api_key: Optional[str] = None
+
+    smtp_email: Optional[str] = None
+    smtp_password: Optional[str] = None
 
     environment: str = "development"
     log_level: str = "INFO"
