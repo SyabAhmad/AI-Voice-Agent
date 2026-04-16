@@ -114,6 +114,27 @@ def book_appointment(
 
         logger.info(f"Total appointments in sheet: {len(all_appointments)}")
 
+        if contact_email:
+            for apt in all_appointments:
+                if (
+                    apt.get("email", "").lower() == contact_email.lower()
+                    and apt.get("date") == date
+                    and apt.get("status") == "confirmed"
+                ):
+                    raise ValueError(
+                        f"User already has an appointment on {date}. Please reschedule instead."
+                    )
+
+        for apt in all_appointments:
+            if (
+                apt.get("date") == date
+                and apt.get("time") == time
+                and apt.get("status") == "confirmed"
+            ):
+                raise ValueError(
+                    f"Time {time} on {date} is already booked. Please choose another time."
+                )
+
         row_num = len(all_appointments) + 2
         row = [
             row_num - 1,

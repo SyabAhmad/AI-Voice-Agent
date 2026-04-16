@@ -171,16 +171,23 @@ async def book_appointment(request: Request):
             }
 
         # Step 4: Book appointment
-        contact = booking_service.create_or_update_contact(
-            data["name"], data["phone"], data["email"]
-        )
-        appointment = booking_service.book_appointment(
-            data["name"],
-            data["phone"],
-            data["email"],
-            data["requested_date"],
-            data["requested_time"],
-        )
+        try:
+            contact = booking_service.create_or_update_contact(
+                data["name"], data["phone"], data["email"]
+            )
+            appointment = booking_service.book_appointment(
+                data["name"],
+                data["phone"],
+                data["email"],
+                data["requested_date"],
+                data["requested_time"],
+            )
+        except ValueError as e:
+            logger.warning(f"Booking conflict: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
 
         logger.info(
             f"✅ Booked: {data['name']} on {data['requested_date']} at {data['requested_time']}"
