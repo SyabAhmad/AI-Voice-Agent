@@ -11,8 +11,10 @@ router = APIRouter()
 def extract_args(body: dict) -> dict:
     """
     Extract arguments from Retell request body.
-    Primary source: body["args"] (dict or JSON string)
-    Fallback: body["call"]["arguments"] (legacy), body (flat JSON)
+    Primary sources:
+    - body["args"] (dict or JSON string)
+    - body["call"]["collected_dynamic_variables"] (Retell dynamic variables)
+    - body["call"]["arguments"] (legacy)
     """
     args = {}
 
@@ -30,6 +32,21 @@ def extract_args(body: dict) -> dict:
             args = raw_args
         else:
             logger.warning(f"Unexpected args type: {type(raw_args)}")
+
+    # Check collected_dynamic_variables (Retell dynamic variables)
+    if not args:
+        call_data = body.get("call", {})
+        collected_vars = call_data.get("collected_dynamic_variables", {})
+        if collected_vars:
+            logger.info(f"📡 Using collected_dynamic_variables: {collected_vars}")
+            # Map common field names
+            args = {
+                "name": collected_vars.get("name", ""),
+                "phone": collected_vars.get("phone", ""),
+                "email": collected_vars.get("email", ""),
+                "requested_date": collected_vars.get("requested_date", ""),
+                "requested_time": collected_vars.get("requested_time", ""),
+            }
 
     # Fallback: body["call"]["arguments"] (legacy nested format)
     if not args:
@@ -78,8 +95,13 @@ def normalize_date(date_str: str) -> Optional[str]:
         days = days_map.get(date_str, 0)
         return (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
 
-    # Assume already YYYY-MM-DD or other format - return as-is
-    return date_str
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        if date_obj.date() < datetime.now().date():
+            return None
+        return date_str
+    except ValueError:
+        return None
 
 
 def clean_appointment_data(raw: dict) -> dict:
@@ -99,7 +121,11 @@ def clean_appointment_data(raw: dict) -> dict:
 
     # Normalize date (e.g., "tomorrow" -> "2026-04-17")
     if requested_date:
-        requested_date = normalize_date(requested_date) or requested_date
+        normalized = normalize_date(requested_date)
+        if normalized:
+            requested_date = normalized
+        else:
+            requested_date = ""
 
     return {
         "name": name,
@@ -181,27 +207,35 @@ async def check_availability(request: Request):
     """Check available slots endpoint."""
     try:
         body = await request.json()
+        logger.info(f"📥 Check availability request: {json.dumps(body)[:500]}")
 
         # Extract and clean
         raw_args = extract_args(body)
+        logger.info(f"📝 Raw args extracted: {raw_args}")
+
         data = clean_appointment_data(raw_args)
+        logger.info(f"📝 Cleaned data: {data}")
 
         requested_date = data.get("requested_date")
 
         if not requested_date:
+            logger.warning("⚠️ No requested_date in check-availability")
             return {"available": False, "requested_date": "", "available_slots": []}
 
         try:
             slots = booking_service.get_available_slots_for_date(requested_date)
+            logger.info(f"📅 Slots for {requested_date}: {slots}")
         except Exception as e:
             logger.warning(f"Error getting slots, using defaults: {e}")
             slots = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"]
 
-        return {
+        response = {
             "available": len(slots) > 0,
             "requested_date": requested_date,
             "available_slots": slots[:10],
         }
+        logger.info(f"📤 Sending response: {response}")
+        return response
 
     except Exception as e:
         logger.error(f"Error in /check-availability: {e}")

@@ -19,7 +19,7 @@ def get_google_sheet():
             sheet = gc.open(SPREADSHEET_NAME)
             logger.info(f"Connected to Google Sheets: {SPREADSHEET_NAME}")
 
-            # Ensure worksheets exist
+            # Ensure worksheets exist with proper headers
             try:
                 sheet.worksheet("Contacts")
             except:
@@ -59,8 +59,11 @@ def get_or_create_contact(phone: str, name: str, email: Optional[str] = None) ->
         sheet = get_google_sheet()
         contacts_ws = sheet.worksheet("Contacts")
 
-        # Get all records - skip header
-        all_contacts = contacts_ws.get_all_records()
+        all_contacts = contacts_ws.get_all_records(
+            expected_headers=["id", "name", "phone", "email", "created_at"]
+        )
+
+        logger.info(f"Total contacts in sheet: {len(all_contacts)}")
 
         logger.info(f"Total contacts in sheet: {len(all_contacts)}")
 
@@ -95,7 +98,19 @@ def book_appointment(
         sheet = get_google_sheet()
         appointments_ws = sheet.worksheet("Appointments")
 
-        all_appointments = appointments_ws.get_all_records()
+        all_appointments = appointments_ws.get_all_records(
+            expected_headers=[
+                "id",
+                "name",
+                "phone",
+                "email",
+                "date",
+                "time",
+                "status",
+                "notes",
+                "booked_at",
+            ]
+        )
 
         logger.info(f"Total appointments in sheet: {len(all_appointments)}")
 
@@ -128,7 +143,19 @@ def book_appointment(
 def get_appointments_by_date(date: str) -> list[dict]:
     sheet = get_google_sheet()
     appointments_ws = sheet.worksheet("Appointments")
-    all_appointments = appointments_ws.get_all_records()
+    all_appointments = appointments_ws.get_all_records(
+        expected_headers=[
+            "id",
+            "name",
+            "phone",
+            "email",
+            "date",
+            "time",
+            "status",
+            "notes",
+            "booked_at",
+        ]
+    )
     return [
         apt
         for apt in all_appointments
